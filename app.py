@@ -35,6 +35,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from contextlib import asynccontextmanager
 
+import gdown
 import joblib
 import pandas as pd
 import requests
@@ -45,9 +46,11 @@ from pydantic import BaseModel, Field
 # Render (and most PaaS platforms) don't guarantee cwd == repo root.
 MODEL_PATH = Path(__file__).parent / "phishing_url_rf_pipeline.pkl"
 
-# Optional: if MODEL_URL is set as a Render env var, download the model at
-# startup instead of shipping it in the git repo (use this if the .pkl is
-# too large to commit, e.g. > GitHub's 100MB limit).
+# Set ONE of these as a Render env var, depending on where the model lives:
+#   GDRIVE_FILE_ID — the file ID from a Google Drive share link
+#                     (https://drive.google.com/file/d/<THIS_PART>/view)
+#   MODEL_URL       — any other direct-download URL (S3, Hugging Face, etc.)
+GDRIVE_FILE_ID = os.environ.get("GDRIVE_FILE_ID")
 MODEL_URL = os.environ.get("MODEL_URL")
 
 NUMERIC_FEATURES = [
@@ -189,15 +192,20 @@ model_store = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Load once at startup instead of per-request — this is the expensive part.
-    if MODEL_URL and not MODEL_PATH.exists():
-        print(f"Downloading model from {MODEL_URL} ...")
-        urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
+    if not MODEL_PATH.exists():
+        if GDRIVE_FILE_ID:
+            print(f"Downloading model from Google Drive (id={GDRIVE_FILE_ID}) ...")
+            gdown.download(id=GDRIVE_FILE_ID, output=str(MODEL_PATH), quiet=False)
+        elif MODEL_URL:
+            print(f"Downloading model from {MODEL_URL} ...")
+            urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
 
     if not MODEL_PATH.exists():
         raise RuntimeError(
             f"Model file not found at {MODEL_PATH}. Either commit "
-            f"phishing_url_rf_pipeline.pkl to the repo, or set the MODEL_URL "
-            f"env var to fetch it at startup."
+            f"phishing_url_rf_pipeline.pkl to the repo, or set GDRIVE_FILE_ID "
+            f"(for a Google Drive file) or MODEL_URL (for any other direct "
+            f"download link) as an env var."
         )
 
     model_store["model"] = joblib.load(MODEL_PATH)
