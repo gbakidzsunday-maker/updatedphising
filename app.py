@@ -40,25 +40,8 @@ import joblib
 import pandas as pd
 import requests
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
-
-
-
-
-app = FastAPI(
-    title="Phishing URL Detection API",
-    description="Random Forest-based phishing URL classifier.",
-    version="1.0.0",
-    lifespan=lifespan,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Resolve relative to this file, not the process's working directory —
 # Render (and most PaaS platforms) don't guarantee cwd == repo root.
@@ -231,11 +214,25 @@ async def lifespan(app: FastAPI):
     model_store.clear()
 
 
+# `lifespan` must be defined above this point — FastAPI() reads it at
+# call time, so the function has to already exist in the namespace.
 app = FastAPI(
     title="Phishing URL Detection API",
     description="Random Forest-based phishing URL classifier.",
     version="1.0.0",
     lifespan=lifespan,
+)
+
+# CORS: allow all origins. allow_credentials must stay False when
+# allow_origins is "*" — browsers/Starlette reject wildcard origin +
+# credentials together. This API takes a JSON body and doesn't rely on
+# cookies, so that's not a limitation here.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 
