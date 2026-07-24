@@ -42,6 +42,24 @@ import requests
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
+
+
+
+app = FastAPI(
+    title="Phishing URL Detection API",
+    description="Random Forest-based phishing URL classifier.",
+    version="1.0.0",
+    lifespan=lifespan,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 # Resolve relative to this file, not the process's working directory —
 # Render (and most PaaS platforms) don't guarantee cwd == repo root.
 MODEL_PATH = Path(__file__).parent / "phishing_url_rf_pipeline.pkl"
